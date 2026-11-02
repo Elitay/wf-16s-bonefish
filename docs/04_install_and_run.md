@@ -23,18 +23,20 @@ in order to run the workflow.
 More information on running EPI2ME workflows can
 be found on our [website](https://labs.epi2me.io/wfindex).
 
-The following command can be used to obtain the workflow.
-This will pull the repository in to the assets folder of
-Nextflow and provide a list of all parameters
-available for the workflow as well as an example command:
+This fork is run from a local clone. Build the workflow container once so both minimap2 and bonefish are available:
 
 ```
-nextflow run epi2me-labs/wf-16s --help
+docker build -t wf-16s-bonefish:latest -f containers/Dockerfile containers/
+nextflow run . --help
 ```
-To update a workflow to the latest version on the command line use
-the following command:
+
+If `docker` reports permission denied on `/var/run/docker.sock` but `getent group docker` already lists your user, the current login has not picked up the group yet. Open a new terminal, or run `newgrp docker`, then retry.
+
+If Docker is not available, download the bonefish binary and run with Singularity/Apptainer. The singularity profile bind-mounts `containers/bonefish` into the official wf-metagenomics image:
+
 ```
-nextflow pull epi2me-labs/wf-16s
+bash containers/fetch-bonefish.sh
+nextflow run . -profile singularity --help
 ```
 
 A demo dataset is provided for testing of the workflow.
@@ -45,10 +47,21 @@ tar -xzvf wf-16s-demo.tar.gz
 ```
 The workflow can then be run with the downloaded demo data using:
 ```
-nextflow run epi2me-labs/wf-16s \
+nextflow run . \
 	--fastq 'wf-16s-demo/test_data' \
 	--minimap2_by_reference \
 	-profile standard
+```
+To classify with bonefish instead of minimap2:
+```
+nextflow run . \
+	--fastq 'wf-16s-demo/test_data' \
+	--classifier bonefish \
+	-profile standard
+```
+High-accuracy ONT mapping for either alignment classifier:
+```
+nextflow run . --fastq 'wf-16s-demo/test_data' --classifier bonefish --align_preset lr:hq
 ```
 
 For further information about running a workflow on

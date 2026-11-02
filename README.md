@@ -17,7 +17,7 @@ The workflow default parameters are optimised for analysis of 16S rRNA gene ampl
 For ITS amplicons, it is strongly recommended that some parameters are changed from the defaults, please see the [ITS presets](#analysing-its-amplicons) section for more information.
 
 Additional features:
-+ Two different approaches are available: `minimap2` (using alignment, default option) or `kraken2` (k-mer based).
++ Three classification approaches are available: `minimap2` (alignment, default), `bonefish` (faster minimap2-compatible aligner), or `kraken2` (k-mer based).
 + Results include:
     - An abundance table with counts per taxa in all the samples.
     - Interactive sankey and sunburst plots to explore the different identified lineages.
@@ -77,18 +77,20 @@ in order to run the workflow.
 More information on running EPI2ME workflows can
 be found on our [website](https://labs.epi2me.io/wfindex).
 
-The following command can be used to obtain the workflow.
-This will pull the repository in to the assets folder of
-Nextflow and provide a list of all parameters
-available for the workflow as well as an example command:
+This fork is run from a local clone. Build the workflow container once so both minimap2 and bonefish are available:
 
 ```
-nextflow run epi2me-labs/wf-16s --help
+docker build -t wf-16s-bonefish:latest -f containers/Dockerfile containers/
+nextflow run . --help
 ```
-To update a workflow to the latest version on the command line use
-the following command:
+
+If `docker` reports permission denied on `/var/run/docker.sock` but `getent group docker` already lists your user, the current login has not picked up the group yet. Open a new terminal, or run `newgrp docker`, then retry.
+
+If Docker is not available, download the bonefish binary and run with Singularity/Apptainer. The singularity profile bind-mounts `containers/bonefish` into the official wf-metagenomics image:
+
 ```
-nextflow pull epi2me-labs/wf-16s
+bash containers/fetch-bonefish.sh
+nextflow run . -profile singularity --help
 ```
 
 A demo dataset is provided for testing of the workflow.
@@ -99,10 +101,21 @@ tar -xzvf wf-16s-demo.tar.gz
 ```
 The workflow can then be run with the downloaded demo data using:
 ```
-nextflow run epi2me-labs/wf-16s \
+nextflow run . \
 	--fastq 'wf-16s-demo/test_data' \
 	--minimap2_by_reference \
 	-profile standard
+```
+To classify with bonefish instead of minimap2:
+```
+nextflow run . \
+	--fastq 'wf-16s-demo/test_data' \
+	--classifier bonefish \
+	-profile standard
+```
+High-accuracy ONT mapping for either alignment classifier:
+```
+nextflow run . --fastq 'wf-16s-demo/test_data' --classifier bonefish --align_preset lr:hq
 ```
 
 For further information about running a workflow on
@@ -172,35 +185,47 @@ nextflow run epi2me-labs/wf-16s --fastq test_data/case04/reads.fastq.gz --exclud
 
 ### 3. Classify reads taxonomically
 
-There are two different approaches to taxonomic classification:
+There are three approaches to taxonomic classification:
 
 #### 3.1 Using Minimap2
 
 [Minimap2](https://github.com/lh3/minimap2) provides better resolution, but, depending on the reference database used, can take significantly more time. This is the option by default.
 
 ```
-nextflow run epi2me-labs/wf-16s --fastq test_data/case01 --classifier minimap2
+nextflow run . --fastq test_data/case01 --classifier minimap2
 ```
 
 The creation of alignment statistics plots can be enabled with the `minimap2_by_reference` flag. Using this option produces a table and scatter plot in the report showing sequencing depth and coverage of each reference. The report also contains a heatmap indicating the sequencing depth over relative genomic coordinates for the references with the highest coverage (references with a mean coverage of less than 1% of the one with the largest value are omitted).
 
 In addition, the user can output BAM files in a folder called `bams` by using the option `keep_bam`. If the user provides a custom database and uses the `igv` option, the workflow will also output the references with reads mappings, as well as an IGV configuration file. This configuration file allows the user to view the alignments in the EPI2ME Desktop Application in the Viewer tab. Note that the number of references can be reduced using the `abundance_threshold` option, which will select those references with a number of reads aligned higher than this value. Please, consider that the view of the alignment is highly dependent on the reference selected.
 
-#### 3.2 Using Kraken2
+Use `--align_preset lr:hq` to switch both minimap2 and `--exclude_host` from `-ax map-ont` to minimap2's high-accuracy ONT preset.
+
+#### 3.2 Using bonefish
+
+[bonefish](https://github.com/DylanCosto/bonefish) is a faster minimap2-compatible aligner. It reuses the same reference, taxonomy, BAM, and reporting path as minimap2:
+
+```
+nextflow run . --fastq test_data/case01 --classifier bonefish
+```
+
+On bonefish, `map-ont` is an alias of its `dna` preset (equivalent to minimap2 `lr:hq`), so `--align_preset map-ont` and `--align_preset lr:hq` select the same algorithm. Alignment filters (`min_percent_identity`, `min_ref_coverage`) still apply after mapping.
+
+#### 3.3 Using Kraken2
 
 [Kraken2](https://github.com/DerrickWood/kraken2) provides the fastest method for the taxonomic classification of the reads. Then, [Bracken](https://github.com/jenniferlu717/Bracken) is used to provide an estimate of the genus (or the selected taxonomic rank) abundance in the sample.
 
-#### 3.3 Databases
+#### 3.4 Databases
 
 There are different taxonomic databases available, and custom databases can be provided.
 The available databases are:
 
 | Database | Content | References | Taxonomy DB | Pipeline |
 | -------- | ------- | -------------------------- | ----------- | -------- |
-| [ncbi_16s_18s](https://www.ncbi.nlm.nih.gov/refseq/targetedloci/) | Archaeal, bacterial and fungal ribosomal RNA loci (16S rDNA, 18S rDNA (SSU)) | [Resources](https://www.ncbi.nlm.nih.gov/refseq/targetedloci/) | [2025-01-01](https://ftp.ncbi.nlm.nih.gov/pub/taxonomy/taxdump_archive/)| Kraken2, minimap2 |
-| [ncbi_16s_18s_28s_ITS](https://www.ncbi.nlm.nih.gov/refseq/targetedloci/) | Archaeal, bacterial and fungal  ribosomal RNA loci (16S rDNA, 18S rDNA (SSU), 28S rDNA (LSU) gene and internal transcribed spacer (ITS)) | [Resources](https://www.ncbi.nlm.nih.gov/refseq/targetedloci/) | [2025-01-01](https://ftp.ncbi.nlm.nih.gov/pub/taxonomy/taxdump_archive/)| Kraken2, minimap2 |
-| [SILVA_138_1](https://www.arb-silva.de/) | aligned small (16S/18S, SSU) ribosomal RNA (rRNA) sequences for Bacteria, Archaea and Eukarya. Version 138.1. As the SILVA database doesn't exceed genus level, the lowest taxonomic rank available for analysis is genus (`taxonomic_rank G`)| [See Citation and License](https://www.arb-silva.de/archive/release_138_1) | SILVA uses its own set of taxids, which do not match the NCBI taxids. The respective taxdump files are provided (database has been made using [kraken2](https://github.com/DerrickWood/kraken2/wiki/Manual#special-databases)), but if NCBI taxids are required, you can create them from the SILVA files ([NCBI](https://www.arb-silva.de/no_cache/download/archive/current/Exports/taxonomy/ncbi/)) | Kraken2, minimap2 |
-| [Greengenes2_plus](https://forum.qiime2.org/t/greengenes2-2024-09/31606) | [Greengenes2 database release 2024.09](https://forum.qiime2.org/t/greengenes2-2024-09/31606), supplemented with *Salmonella enterica* and *Sarcina perfringens* reference sequences from [GTDB release 226](https://gtdb.ecogenomic.org/stats/r226) used in the [ZymoBIOMICS Microbial Communities with 16S dataset blog post](https://epi2me.nanoporetech.com/zymo_16s_2025.09/) | [Greengenes2 Citation](https://greengenes2.ucsd.edu/), [Greengenes2 License](https://ftp.microbio.me/greengenes_release/current/00LICENSE) | Custom taxonomy DB | Kraken2, minimap2 |
+| [ncbi_16s_18s](https://www.ncbi.nlm.nih.gov/refseq/targetedloci/) | Archaeal, bacterial and fungal ribosomal RNA loci (16S rDNA, 18S rDNA (SSU)) | [Resources](https://www.ncbi.nlm.nih.gov/refseq/targetedloci/) | [2025-01-01](https://ftp.ncbi.nlm.nih.gov/pub/taxonomy/taxdump_archive/)| Kraken2, minimap2, bonefish |
+| [ncbi_16s_18s_28s_ITS](https://www.ncbi.nlm.nih.gov/refseq/targetedloci/) | Archaeal, bacterial and fungal  ribosomal RNA loci (16S rDNA, 18S rDNA (SSU), 28S rDNA (LSU) gene and internal transcribed spacer (ITS)) | [Resources](https://www.ncbi.nlm.nih.gov/refseq/targetedloci/) | [2025-01-01](https://ftp.ncbi.nlm.nih.gov/pub/taxonomy/taxdump_archive/)| Kraken2, minimap2, bonefish |
+| [SILVA_138_1](https://www.arb-silva.de/) | aligned small (16S/18S, SSU) ribosomal RNA (rRNA) sequences for Bacteria, Archaea and Eukarya. Version 138.1. As the SILVA database doesn't exceed genus level, the lowest taxonomic rank available for analysis is genus (`taxonomic_rank G`)| [See Citation and License](https://www.arb-silva.de/archive/release_138_1) | SILVA uses its own set of taxids, which do not match the NCBI taxids. The respective taxdump files are provided (database has been made using [kraken2](https://github.com/DerrickWood/kraken2/wiki/Manual#special-databases)), but if NCBI taxids are required, you can create them from the SILVA files ([NCBI](https://www.arb-silva.de/no_cache/download/archive/current/Exports/taxonomy/ncbi/)) | Kraken2, minimap2, bonefish |
+| [Greengenes2_plus](https://forum.qiime2.org/t/greengenes2-2024-09/31606) | [Greengenes2 database release 2024.09](https://forum.qiime2.org/t/greengenes2-2024-09/31606), supplemented with *Salmonella enterica* and *Sarcina perfringens* reference sequences from [GTDB release 226](https://gtdb.ecogenomic.org/stats/r226) used in the [ZymoBIOMICS Microbial Communities with 16S dataset blog post](https://epi2me.nanoporetech.com/zymo_16s_2025.09/) | [Greengenes2 Citation](https://greengenes2.ucsd.edu/), [Greengenes2 License](https://ftp.microbio.me/greengenes_release/current/00LICENSE) | Custom taxonomy DB | Kraken2, minimap2, bonefish |
 | [Standard-8](https://benlangmead.github.io/aws-indexes/k2) | Refseq archaea, bacteria, viral, plasmid, human1, UniVec_Core capped at 8 GB | [More Information](https://benlangmead.github.io/aws-indexes/k2#older-minikraken-indexes) | [2025-01-01](https://ftp.ncbi.nlm.nih.gov/pub/taxonomy/taxdump_archive/) | Kraken2 |
 | [PlusPF-8](https://benlangmead.github.io/aws-indexes/k2) | Standard plus Refseq protozoa & fungi capped at 8 GB | [More Information](https://benlangmead.github.io/aws-indexes/k2#older-minikraken-indexes) | [2025-01-01](https://ftp.ncbi.nlm.nih.gov/pub/taxonomy/taxdump_archive/) | Kraken2 |
 | [PlusPFP-8](https://benlangmead.github.io/aws-indexes/k2) | Standard plus Refseq protozoa, fungi & plant capped at 8 GB | [More Information](https://benlangmead.github.io/aws-indexes/k2#older-minikraken-indexes)| [2025-01-01](https://ftp.ncbi.nlm.nih.gov/pub/taxonomy/taxdump_archive/)| Kraken2 |
@@ -280,7 +305,7 @@ The report also includes the rarefaction curve per sample which displays the mea
 |--------------------------|------|-------------|------|---------|
 | fastq | string | FASTQ files to use in the analysis. | This accepts one of three cases: (i) the path to a single FASTQ file; (ii) the path to a top-level directory containing FASTQ files; (iii) the path to a directory containing one level of sub-directories which in turn contain FASTQ files. In the first and second case, a sample name can be supplied with `--sample`. In the last case, the data is assumed to be multiplexed with the names of the sub-directories as barcodes. In this case, a sample sheet can be provided with `--sample_sheet`. |  |
 | bam | string | BAM or unaligned BAM (uBAM) files to use in the analysis. | This accepts one of three cases: (i) the path to a single BAM file; (ii) the path to a top-level directory containing BAM files; (iii) the path to a directory containing one level of sub-directories which in turn contain BAM files. In the first and second case, a sample name can be supplied with `--sample`. In the last case, the data is assumed to be multiplexed with the names of the sub-directories as barcodes. In this case, a sample sheet can be provided with `--sample_sheet`. |  |
-| classifier | string | Kraken2 or Minimap2 workflow to be used for classification of reads. | Use Kraken2 for fast classification and minimap2 for finer resolution, see Readme for further info. | minimap2 |
+| classifier | string | Kraken2, Minimap2, or bonefish workflow to be used for classification of reads. | Use Kraken2 for fast classification, minimap2 for finer resolution, or bonefish as a faster minimap2-compatible aligner. | minimap2 |
 | analyse_unclassified | boolean | Analyse unclassified reads from input directory. By default the workflow will not process reads in the unclassified directory. | If selected and if the input is a multiplex directory the workflow will also process the unclassified directory. | False |
 | exclude_host | string | A FASTA or MMI file of the host reference. Reads that align with this reference will be excluded from the analysis. |  |  |
 
@@ -319,6 +344,7 @@ The report also includes the rarefaction curve per sample which displays the mea
 
 | Nextflow parameter name  | Type | Description | Help | Default |
 |--------------------------|------|-------------|------|---------|
+| align_preset | string | Preset passed as -ax to minimap2 and bonefish. | `map-ont` (default) or `lr:hq`. Also used for `--exclude_host`. On bonefish both names select its dna preset. | map-ont |
 | minimap2filter | string | Filter output of minimap2 by taxids inc. child nodes, E.g. "9606,1404" | Provide a list of taxids if you are only interested in certain ones in your minimap2 analysis outputs. |  |
 | minimap2exclude | boolean | Invert minimap2filter and exclude the given taxids instead | Exclude a list of taxids from analysis outputs. | False |
 | keep_bam | boolean | Copy bam files into the output directory. |  | False |
@@ -407,14 +433,16 @@ If your question is not answered here, please report any issues or suggestions o
 
 + *How can I use Kraken2 indexes?* - There are different databases available [here](https://benlangmead.github.io/aws-indexes/k2).
 
-+ *How can I use custom databases?* - If you want to run the workflow using your own Kraken2 database, you'll need to provide the database and an associated taxonomy dump. For a custom Minimap2 reference database, you'll need to provide a reference FASTA (or MMI) and an associated ref2taxid file. For a guide on how to build and use custom databases, take a look at our [article on how to run wf-16s offline](https://labs.epi2me.io/how-to-meta-offline/).
++ *How can I use custom databases?* - If you want to run the workflow using your own Kraken2 database, you'll need to provide the database and an associated taxonomy dump. For a custom Minimap2 or bonefish reference database, you'll need to provide a reference FASTA (or MMI) and an associated ref2taxid file. For a guide on how to build and use custom databases, take a look at our [article on how to run wf-16s offline](https://labs.epi2me.io/how-to-meta-offline/).
 
 + *How can I run the workflow with less memory?* -
     When running in Kraken mode, you can set the `kraken2_memory_mapping` parameter if the available memory is smaller than the size of the database.
 
 + *How can I run the workflow offline?* - To run wf-16s offline you can use the workflow to download the databases from the internet and prepare them for offline re-use later. If you want to use one of the databases supported out of the box by the workflow, you can run the workflow with your desired database and any input (for example, the test data). The database will be downloaded and prepared in a directory on your computer. Once the database has been prepared, it will be used automatically the next time you run the workflow without needing to be downloaded again. You can find advice on picking a suitable database in our [article on selecting databases for wf-metagenomics](https://labs.epi2me.io/metagenomic-databases/).
 
-+ *When and how are coverage and identity filters applied when using the minimap2 approach?* - With minimap2-based classification, coverage and identity filtering is applied by using the `min_ref_coverage` and `min_percent_identity` options respectively. All reads that mapped to a reference, but failed to pass these filters, are relabelled as unclassified. If the `include_read_assignments` option is used, tables in the output will show read classifications after this filtering step. However, the output BAM file always contains the raw minimap2 alignment results. To read more about both filters, see [minimap2 Options](#minimap2-options).
++ *When and how are coverage and identity filters applied when using the minimap2 or bonefish approach?* - Coverage and identity filtering is applied by using the `min_ref_coverage` and `min_percent_identity` options respectively. All reads that mapped to a reference, but failed to pass these filters, are relabelled as unclassified. If the `include_read_assignments` option is used, tables in the output will show read classifications after this filtering step. However, the output BAM file always contains the raw alignment results. To read more about both filters, see [minimap2 Options](#minimap2-options).
+
++ *What is `--align_preset`?* - It selects `-ax map-ont` (default) or `-ax lr:hq` for minimap2, bonefish, and `--exclude_host`. On bonefish both names are the same `dna` algorithm.
 
 
 

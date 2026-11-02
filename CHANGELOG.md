@@ -5,6 +5,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [v1.6.1-bonefish]
+Fork of epi2me-labs/wf-16s v1.6.1 that adds [bonefish](https://github.com/DylanCosto/bonefish) as an optional alignment classifier.
+### Added
+- `--classifier bonefish`, a slot-in replacement for the minimap2 classification path. Downstream taxonomy, abundance, BAM, IGV, and reporting steps are unchanged.
+- `--align_preset` (`map-ont` default, or `lr:hq`) for minimap2, bonefish, and `--exclude_host` host depletion.
+- `containers/Dockerfile` to layer a pinned bonefish binary onto `ontresearch/wf-metagenomics`. Build with `docker build -t wf-16s-bonefish:latest -f containers/Dockerfile containers/`.
+- `containers/bonefish.def` for an equivalent Singularity/Apptainer image when Docker is not available.
+### Changed
+- Alignment classification now selects the aligner binary (`minimap2` or `bonefish`) from `--classifier`.
+- Custom `--reference` / `--ref2taxid` checks apply to bonefish as well as minimap2.
+### Notes
+- bonefish treats `map-ont` as an alias of its `dna` preset (minimap2 `lr:hq`), so `--align_preset map-ont` and `lr:hq` are equivalent for bonefish. They differ for minimap2.
+- Host depletion still runs the minimap2 binary.
+
 ## [v1.6.1]
 ### Added
 - Links to available datasets in the documentation.

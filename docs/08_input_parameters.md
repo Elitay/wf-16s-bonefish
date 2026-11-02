@@ -4,7 +4,7 @@
 |--------------------------|------|-------------|------|---------|
 | fastq | string | FASTQ files to use in the analysis. | This accepts one of three cases: (i) the path to a single FASTQ file; (ii) the path to a top-level directory containing FASTQ files; (iii) the path to a directory containing one level of sub-directories which in turn contain FASTQ files. In the first and second case, a sample name can be supplied with `--sample`. In the last case, the data is assumed to be multiplexed with the names of the sub-directories as barcodes. In this case, a sample sheet can be provided with `--sample_sheet`. |  |
 | bam | string | BAM or unaligned BAM (uBAM) files to use in the analysis. | This accepts one of three cases: (i) the path to a single BAM file; (ii) the path to a top-level directory containing BAM files; (iii) the path to a directory containing one level of sub-directories which in turn contain BAM files. In the first and second case, a sample name can be supplied with `--sample`. In the last case, the data is assumed to be multiplexed with the names of the sub-directories as barcodes. In this case, a sample sheet can be provided with `--sample_sheet`. |  |
-| classifier | string | Kraken2 or Minimap2 workflow to be used for classification of reads. | Use Kraken2 for fast classification and minimap2 for finer resolution, see Readme for further info. | minimap2 |
+| classifier | string | Kraken2, Minimap2, or bonefish workflow to be used for classification of reads. | Use Kraken2 for fast classification, minimap2 for finer resolution, or bonefish as a faster minimap2-compatible aligner. | minimap2 |
 | analyse_unclassified | boolean | Analyse unclassified reads from input directory. By default the workflow will not process reads in the unclassified directory. | If selected and if the input is a multiplex directory the workflow will also process the unclassified directory. | False |
 | exclude_host | string | A FASTA or MMI file of the host reference. Reads that align with this reference will be excluded from the analysis. |  |  |
 
@@ -43,6 +43,7 @@
 
 | Nextflow parameter name  | Type | Description | Help | Default |
 |--------------------------|------|-------------|------|---------|
+| align_preset | string | Preset passed as -ax to minimap2 and bonefish. | `map-ont` (default) or `lr:hq`. Also used for `--exclude_host`. On bonefish both names select its dna preset. | map-ont |
 | minimap2filter | string | Filter output of minimap2 by taxids inc. child nodes, E.g. "9606,1404" | Provide a list of taxids if you are only interested in certain ones in your minimap2 analysis outputs. |  |
 | minimap2exclude | boolean | Invert minimap2filter and exclude the given taxids instead | Exclude a list of taxids from analysis outputs. | False |
 | keep_bam | boolean | Copy bam files into the output directory. |  | False |

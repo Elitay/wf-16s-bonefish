@@ -1,0 +1,10 @@
+Bootstrap: docker
+From: ontresearch/wf-metagenomics:sha38db033c15c74ae7cac3c609fdfe2c8d2a53ef6f
+
+%files
+    bonefish /usr/local/bin/bonefish
+
+%post
+    chmod 0755 /usr/local/bin/bonefish
+    /usr/local/bin/bonefish --version
+    minimap2 --version

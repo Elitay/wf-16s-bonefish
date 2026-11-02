@@ -45,12 +45,13 @@
                     "type": "string",
                     "default": "minimap2",
                     "title": "Classification method",
-                    "description": "Kraken2 or Minimap2 workflow to be used for classification of reads.",
+                    "description": "Kraken2, Minimap2, or bonefish workflow to be used for classification of reads.",
                     "enum": [
                         "kraken2",
-                        "minimap2"
+                        "minimap2",
+                        "bonefish"
                     ],
-                    "help_text": "Use Kraken2 for fast classification and minimap2 for finer resolution, see Readme for further info."
+                    "help_text": "Use Kraken2 for fast classification, minimap2 for finer resolution, or bonefish as a faster minimap2-compatible aligner. Alignment options also apply to bonefish."
                 },
                 "analyse_unclassified": {
                     "type": "boolean",
@@ -226,6 +227,17 @@
             "type": "object",
             "fa_icon": "fas fa-dna",
             "properties": {
+                "align_preset": {
+                    "type": "string",
+                    "default": "map-ont",
+                    "title": "Alignment preset",
+                    "description": "Preset passed as -ax to minimap2 and bonefish. Also used for --exclude_host host depletion.",
+                    "enum": [
+                        "map-ont",
+                        "lr:hq"
+                    ],
+                    "help_text": "map-ont is the classic wf-16s default. lr:hq is minimap2's high-accuracy ONT preset. On bonefish both names select its dna preset (map-ont is an alias of lr:hq). Ignored when --classifier kraken2 is used without --exclude_host."
+                },
                 "minimap2filter": {
                     "type": "string",
                     "title": "Select reads belonging to the following taxonomy identifiers (taxids)",
@@ -268,8 +280,8 @@
                     "description": "Minimum coverage value to define a sequence as classified; sequences with a coverage value lower than this are defined as unclassified. Use this option if you expect reads whose lengths are similar to the references' lengths."
                 }
             },
-            "description": "Minimap2 classification options. Only relevant if classifier parameter is set to minimap2.",
-            "help_text": "Minimap2: The default strategy uses minimap2 to perform full alignments against FASTA-formatted references sequences."
+            "description": "Alignment classification options. Relevant if classifier is minimap2 or bonefish; align_preset also applies to --exclude_host.",
+            "help_text": "The default strategy uses minimap2 (or bonefish) to perform full alignments against FASTA-formatted reference sequences."
         },
         "report_options": {
             "title": "Report Options",

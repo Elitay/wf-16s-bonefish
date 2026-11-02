@@ -6,3 +6,5 @@ template-workflow
 *.pyc
 *.pyo
 .DS_store
+containers/bonefish
+containers/*.sif

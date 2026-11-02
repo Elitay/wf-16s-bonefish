@@ -1,3 +1,4 @@
 [submodule "wf-metagenomics"]
 	path = wf-metagenomics
-	url = https://github.com/epi2me-labs/wf-metagenomics
+	url = git@github.com:Elitay/wf-metagenomics.git
+	branch = bonefish

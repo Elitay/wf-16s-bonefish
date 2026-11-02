@@ -50,13 +50,20 @@ workflow {
         throw new Exception("`include_kraken2_assignments` is now deprecated in favour of `include_read_assignments`.")
     }
 
+    def alignment_classifiers = ['minimap2', 'bonefish']
+    boolean is_alignment = params.classifier in alignment_classifiers
+    def allowed_presets = ['map-ont', 'lr:hq']
+    if (!(params.align_preset in allowed_presets)) {
+        throw new Exception("`--align_preset` must be one of ${allowed_presets.join(', ')}; got '${params.align_preset}'.")
+    }
+
     // Stop the pipeline in case not valid parameters combinations
-    if (params.classifier == 'minimap2' && params.database) {
-        throw new Exception("To use minimap2 with your custom database, you need to use `--reference` (instead of `--database`) and `--ref2taxid`.")
+    if (is_alignment && params.database) {
+        throw new Exception("To use ${params.classifier} with your custom database, you need to use `--reference` (instead of `--database`) and `--ref2taxid`.")
     }
 
     boolean output_igv = params.igv
-    if (params.classifier == 'minimap2' && params.reference && params.igv) {
+    if (is_alignment && params.reference && params.igv) {
         ArrayList ref_exts = [".fa", ".fa.gz", ".fasta", ".fasta.gz", ".fna", ".fna.gz"]
         if (! ref_exts.any { ext -> file(params.reference).name.endsWith(ext) }) {
             output_igv = false
@@ -141,12 +148,17 @@ workflow {
             valid
         }
 
-    // Set minimap2 common options
+    // Alignment options shared by host depletion (always minimap2) and the
+    // alignment classifiers. bonefish does not accept minimap2 memory caps.
     ArrayList common_minimap2_opts = [
-        "-ax map-ont",
-        "--cap-kalloc 100m",
-        "--cap-sw-mem 50m",
+        "-ax ${params.align_preset}",
     ]
+    if (params.classifier != 'bonefish') {
+        common_minimap2_opts += [
+            "--cap-kalloc 100m",
+            "--cap-sw-mem 50m",
+        ]
+    }
 
 
     // Run common
@@ -160,8 +172,9 @@ workflow {
         samples = ingress_samples_filtered
     }
 
-    if (params.classifier == "minimap2") {
-        log.info("Minimap2 pipeline.")
+    if (is_alignment) {
+        def aligner = params.classifier == 'bonefish' ? 'bonefish' : 'minimap2'
+        log.info("${aligner == 'bonefish' ? 'Bonefish' : 'Minimap2'} pipeline (preset ${params.align_preset}).")
         if (keep_bam) {
             common_minimap2_opts = common_minimap2_opts + ["-y"]
         }
@@ -176,7 +189,8 @@ workflow {
             databases.taxonomy,
             databases.taxonomic_rank,
             common_minimap2_opts,
-            output_igv
+            output_igv,
+            aligner
             )
         alignment_stats = results.alignment_reports
     } else {
